@@ -1,0 +1,10 @@
+{
+  "agents": [
+    {
+      "name": "toy-agent",
+      "import_path": "toy_agent.agent:ToyAgent",
+      "result_strategy": "standard",
+      "trajectory_name_patterns": ["*.telemetry.json"]
+    }
+  ]
+}
