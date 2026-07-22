@@ -1,26 +1,37 @@
 import json
-import os
-import sys
+from pathlib import Path
+from harbor.agents.base import BaseAgent  # Import base agent class
 
-class ToyAgent:
-    """A minimal Harbor-compatible mock agent."""
-    def __init__(self, **kwargs):
-        self.kwargs = kwargs
-        print(f"ToyAgent initialized with kwargs: {kwargs}", file=sys.stderr)
+class ToyAgent(BaseAgent):
+    @staticmethod
+    def name() -> str:
+        return "toy-agent"
 
-    def run(self, task_prompt: str, **kwargs):
-        print(f"Executing task: {task_prompt}", file=sys.stderr)
-        # Write a dummy telemetry file so the parser succeeds
-        os.makedirs("output", exist_ok=True)
-        telemetry_data = {
-            "status": "completed",
-            "score": 1.0,
-            "metrics": {
-                "steps": 1,
-                "tokens": 42
+    def version(self) -> str | None:
+        return "1.0"
+
+    def __init__(self, model_name: str | None = None, *args, **kwargs):
+        super().__init__()
+        self.model_name = model_name
+
+    async def setup(self, environment):
+        pass
+
+    async def run(self, instruction, environment, context):
+        print("Toy Agent starting...")
+        trajectory_path = Path("/logs/agent/toy-agent.trajectory.json")
+        trajectory_path.parent.mkdir(parents=True, exist_ok=True)
+        trajectory_path.write_text(json.dumps({
+            "schema_version": "ATIF-v1.2",
+            "session_id": "toy-session",
+            "agent": {
+                "name": "toy-agent",
+                "version": "1.0",
+                "model_name": self.model_name or "toy-model"
+            },
+            "steps": [],
+            "final_metrics": {
+                "total_steps": 1,
+                "mean_reward": 1.0
             }
-        }
-        with open("output/run.telemetry.json", "w") as f:
-            json.dump(telemetry_data, f)
-        print("Task execution completed. Telemetry written to output/run.telemetry.json", file=sys.stderr)
-        return "Task completed"
+        }))
