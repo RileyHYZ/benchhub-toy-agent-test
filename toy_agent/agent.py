@@ -10,9 +10,9 @@ class ToyAgent(BaseAgent):
     def version(self) -> str | None:
         return "1.0"
 
-    def __init__(self, model_name: str | None = None, *args, **kwargs):
-        super().__init__()
-        self.model_name = model_name
+    # Forward all initialization arguments directly to the BaseAgent constructor
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     async def setup(self, environment):
         pass
