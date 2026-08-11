@@ -5,6 +5,18 @@
       "import_path": "toy_agent.agent:ToyAgent",
       "result_strategy": "standard",
       "trajectory_name_patterns": ["*.telemetry.json"]
+    },
+    {
+      "name": "antigravity-cli",
+      "import_path": "toy_agent.antigravity_cli:AntigravityCli",
+      "result_strategy": "standard",
+      "trajectory_name_patterns": ["trajectory.json"]
+    },
+    {
+      "name": "terminus-2",
+      "import_path": "toy_agent.terminus_2:Terminus2",
+      "result_strategy": "standard",
+      "trajectory_name_patterns": ["trajectory.json"]
     }
   ]
 }
