@@ -8,3 +8,9 @@ version = "0.1.0"
 description = "A toy custom agent package for BenchHub testing"
 requires-python = ">=3.10"
 dependencies = []
+
+[tool.setuptools.package-data]
+toy_agent = [
+    "terminus_2/templates/*.txt",
+    "terminus_2/*.sh"
+]
