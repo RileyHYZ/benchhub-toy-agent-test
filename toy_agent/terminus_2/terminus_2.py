@@ -67,7 +67,7 @@ class SubagentMetrics:
     total_cost_usd: float = 0.0
 
 
-class Terminus2(BaseAgent):
+class ToyTerminus2(BaseAgent):
     SUPPORTS_ATIF: bool = True
 
     def _init_llm(
@@ -346,7 +346,7 @@ class Terminus2(BaseAgent):
 
     @staticmethod
     def name() -> str:
-        return AgentName.TERMINUS_2.value
+        return "toy-terminus-2"
 
     def version(self) -> str | None:
         return "2.0.0"

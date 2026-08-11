@@ -32,9 +32,9 @@ _REASONING_EFFORT_CHOICES = frozenset(("minimal", "low", "medium", "high"))
 _FLASH_ONLY_REASONING_EFFORTS = frozenset(("minimal", "medium"))
 
 
-class AntigravityCli(BaseInstalledAgent):
+class ToyAntigravityCli(BaseInstalledAgent):
     """
-    The antigravity-cli agent uses Google's Antigravity CLI tool to solve tasks.
+    The toy-antigravity-cli agent uses Google's Antigravity CLI tool to solve tasks.
     """
 
     def get_version_command(self) -> str | None:
@@ -55,7 +55,7 @@ class AntigravityCli(BaseInstalledAgent):
 
     @staticmethod
     def name() -> str:
-        return AgentName.ANTIGRAVITY_CLI.value
+        return "toy-antigravity-cli"
 
     def __init__(
         self,
@@ -409,7 +409,7 @@ class AntigravityCli(BaseInstalledAgent):
             schema_version="ATIF-v1.6",
             session_id=session_id,
             agent=Agent(
-                name=AgentName.ANTIGRAVITY_CLI.value,
+                name="toy-antigravity-cli",
                 version=self.version() or "unknown",
                 model_name=default_model_name,
             ),

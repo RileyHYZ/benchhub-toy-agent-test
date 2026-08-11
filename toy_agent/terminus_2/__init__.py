@@ -1,3 +1,3 @@
-from .terminus_2 import Terminus2
+from .terminus_2 import ToyTerminus2
 
-__all__ = ["Terminus2"]
+__all__ = ["ToyTerminus2"]
