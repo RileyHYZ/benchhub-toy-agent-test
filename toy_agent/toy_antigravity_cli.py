@@ -657,7 +657,10 @@ class ToyAntigravityCli(BaseInstalledAgent):
 
         # Gemini CLI refuses to honor `--yolo` in an untrusted workspace and
         # overrides approval mode back to "default"
-        env = {"GEMINI_CLI_TRUST_WORKSPACE": "true"}
+        env = {
+            "GEMINI_CLI_TRUST_WORKSPACE": "true",
+            "AGY_ADC_AUTH": "true",
+        }
 
         auth_vars = [
             "GEMINI_API_KEY",
