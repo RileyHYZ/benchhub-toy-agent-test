@@ -12,7 +12,8 @@
       "result_strategy": "standard",
       "trajectory_name_patterns": ["trajectory.json"],
       "env": {
-        "AGY_ADC_AUTH": "true"
+        "AGY_ADC_AUTH": "true",
+        "GEMINI_CLI_TRUST_WORKSPACE": "true"
       }
     },
     {

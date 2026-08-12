@@ -655,14 +655,23 @@ class ToyAntigravityCli(BaseInstalledAgent):
 
         model = self.model_name.split("/")[-1]
 
-        # Gemini CLI refuses to honor `--yolo` in an untrusted workspace and
-        # overrides approval mode back to "default"
-        env = {
-            "GEMINI_CLI_TRUST_WORKSPACE": "true",
-            "AGY_ADC_AUTH": "true",
-        }
+        # No hardcoded values here: AGY_ADC_AUTH and GEMINI_CLI_TRUST_WORKSPACE
+        # (the latter because Gemini CLI refuses to honor `--yolo` in an
+        # untrusted workspace) are declared in manifest.json and exported into
+        # this process by the BenchHub worker.
+        #
+        # The forwarding below is still required. This is a containerized agent:
+        # commands run via exec_as_agent inside the agent's own container, and
+        # the worker's process environment does not cross that boundary. So the
+        # manifest supplies the *values*, and the agent decides which names to
+        # pass through -- it cannot be dropped in favour of the manifest alone.
+        env = {}
 
-        auth_vars = [
+        passthrough_vars = [
+            # Declared by this agent in manifest.json.
+            "AGY_ADC_AUTH",
+            "GEMINI_CLI_TRUST_WORKSPACE",
+            # Injected by the BenchHub platform.
             "GEMINI_API_KEY",
             "GOOGLE_APPLICATION_CREDENTIALS",
             "GOOGLE_CLOUD_PROJECT",
@@ -670,7 +679,7 @@ class ToyAntigravityCli(BaseInstalledAgent):
             "GOOGLE_GENAI_USE_VERTEXAI",
             "GOOGLE_API_KEY",
         ]
-        for var in auth_vars:
+        for var in passthrough_vars:
             if var in os.environ:
                 env[var] = os.environ[var]
 

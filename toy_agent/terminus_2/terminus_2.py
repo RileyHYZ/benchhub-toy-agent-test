@@ -225,12 +225,10 @@ class ToyTerminus2(BaseAgent):
             llm_call_kwargs: Extra kwargs to forward to LLM calls (e.g., extra_body).
             **kwargs: Additional arguments
         """
-        if model_name and model_name.startswith("google/"):
-            import os
-            if os.environ.get("USE_VERTEX") == "true" or os.environ.get("GOOGLE_GENAI_USE_VERTEXAI") == "true":
-                model_name = "vertex_ai/" + model_name[len("google/"):]
-            else:
-                model_name = "gemini/" + model_name[len("google/"):]
+        # Deliberately no model-prefix normalization here: `model_prefix_map`
+        # in manifest.json is the single source of truth, so `model_name`
+        # arrives already normalized (e.g. "vertex_ai/..." rather than
+        # "google/...").
         super().__init__(logs_dir, model_name, *args, **kwargs)
         self._extra_env = extra_env
 

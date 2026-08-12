@@ -1,1 +1,0 @@
-# BenchHub Toy Agent Test
