@@ -10,13 +10,22 @@
       "name": "toy-antigravity-cli",
       "import_path": "toy_agent.toy_antigravity_cli:ToyAntigravityCli",
       "result_strategy": "standard",
-      "trajectory_name_patterns": ["trajectory.json"]
+      "trajectory_name_patterns": ["trajectory.json"],
+      "env": {
+        "AGY_ADC_AUTH": "true"
+      }
     },
     {
       "name": "toy-terminus-2",
       "import_path": "toy_agent.terminus_2:ToyTerminus2",
       "result_strategy": "standard",
-      "trajectory_name_patterns": ["trajectory.json"]
+      "trajectory_name_patterns": ["trajectory.json"],
+      "model_prefix_map": {
+        "google/": {
+          "vertex": "vertex_ai/",
+          "default": "gemini/"
+        }
+      }
     }
   ]
 }
