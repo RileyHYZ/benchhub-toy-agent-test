@@ -2,6 +2,8 @@ import base64
 import json
 import os
 import shlex
+import urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal
 
@@ -25,6 +27,13 @@ from harbor.models.trajectories import (
     ToolCall,
     Trajectory,
 )
+
+# agy's data directory, inside the container. This is the bind-mounted host
+# logs dir, which is how the OAuth token below reaches the container without
+# ever appearing in a command line (and therefore in the logs).
+_AGENT_DATA_DIR = "/logs/agent"
+_AGENT_CLI_SUBDIR = "antigravity-cli"
+_TOKEN_EXPIRY_DAYS = 7
 
 _ImageMediaType = Literal["image/jpeg", "image/png", "image/gif", "image/webp"]
 _ReasoningEffort = Literal["minimal", "low", "medium", "high"]
@@ -97,6 +106,67 @@ class ToyAntigravityCli(BaseInstalledAgent):
                 "Use 'low' or 'high', or choose a Gemini 3 Flash model."
             )
 
+    def _get_expiry_timestamp(self) -> str:
+        """Returns an RFC 3339 formatted UTC timestamp for the token expiry."""
+        expiry_time = datetime.now(timezone.utc) + timedelta(days=_TOKEN_EXPIRY_DAYS)
+        return expiry_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def _fetch_gce_metadata_token(self) -> str | None:
+        """Fetches the service account access token from the GCE metadata server.
+
+        Runs on the host VM (the BenchHub worker), where the metadata server is
+        reachable. The task container is not expected to reach it.
+        """
+        try:
+            req = urllib.request.Request(
+                "http://metadata.google.internal/computeMetadata/v1/"
+                "instance/service-accounts/default/token",
+                headers={"Metadata-Flavor": "Google"},
+            )
+            with urllib.request.urlopen(req, timeout=2) as response:
+                token_info = json.loads(response.read().decode("utf-8"))
+                return token_info.get("access_token")
+        except Exception as e:  # noqa: BLE001 - best effort, caller degrades
+            print(f"WARNING: Failed to fetch metadata token: {e}")
+        return None
+
+    def _write_gcp_auth_token(self, access_token: str) -> None:
+        """Plant an OAuth token where agy will find it inside the container.
+
+        Written on the *host* side into ``logs_dir``, which is bind-mounted to
+        ``/logs/agent``. That keeps the token out of any command line, and so
+        out of the harbor logs, while still making it visible to the container.
+        """
+        cli_dir = self.logs_dir / _AGENT_CLI_SUBDIR
+        cli_dir.mkdir(parents=True, exist_ok=True)
+
+        token_file = cli_dir / "antigravity-oauth-token"
+        token_file.write_text(
+            json.dumps(
+                {
+                    "token": {
+                        "access_token": access_token,
+                        "token_type": "Bearer",
+                        "expiry": self._get_expiry_timestamp(),
+                    },
+                    "auth_method": "gcp",
+                    "project_id": self._gcp_project(),
+                    "region": "global",
+                },
+                indent=2,
+            )
+        )
+
+        # Keep the token out of the raw_logs uploaded to GCS.
+        logignore_file = self.logs_dir / ".logignore"
+        logignore_file.write_text(
+            "*antigravity-oauth-token*\n*.logignore\n", encoding="utf-8"
+        )
+
+    @staticmethod
+    def _gcp_project() -> str:
+        return os.environ.get("GOOGLE_CLOUD_PROJECT") or "ai-incubation-team"
+
     async def install(self, environment: BaseEnvironment) -> None:
         await self.exec_as_root(
             environment,
@@ -107,11 +177,23 @@ class ToyAntigravityCli(BaseInstalledAgent):
             environment,
             command="curl -fsSL https://antigravity.google/cli/install.sh | bash",
         )
+
+        # agy has no credentials of its own in a Batch task container: no ADC
+        # file is mounted and the metadata server is not reachable from inside.
+        # Fetch a token on the host and plant it in the bind-mounted data dir.
+        access_token = self._fetch_gce_metadata_token()
+        if access_token:
+            self._write_gcp_auth_token(access_token)
+        else:
+            print(
+                "WARNING: No GCE metadata token; agy will likely fail to authenticate"
+            )
+
         await self.exec_as_agent(
             environment,
             command=(
-                "mkdir -p ~/.agy/antigravity-cli && "
-                "cat > ~/.agy/antigravity-cli/settings.json << 'SETTINGS'\n"
+                f"mkdir -p {_AGENT_DATA_DIR}/{_AGENT_CLI_SUBDIR} && "
+                f"cat > {_AGENT_DATA_DIR}/{_AGENT_CLI_SUBDIR}/settings.json << 'SETTINGS'\n"
                 '{\n  "experimental": {\n    "skills": true\n  }\n}\n'
                 "SETTINGS"
             ),
@@ -578,10 +660,11 @@ class ToyAntigravityCli(BaseInstalledAgent):
         """Return a shell command that copies skills to the Antigravity CLI skills directory."""
         if not self.skills_dir:
             return None
+        cli_dir = f"{_AGENT_DATA_DIR}/{_AGENT_CLI_SUBDIR}"
         return (
-            f"mkdir -p ~/.agy/antigravity-cli/skills && "
+            f"mkdir -p {cli_dir}/skills && "
             f"cp -r {shlex.quote(self.skills_dir)}/* "
-            f"~/.agy/antigravity-cli/skills/ 2>/dev/null || true"
+            f"{cli_dir}/skills/ 2>/dev/null || true"
         )
 
     def _build_settings_config(
@@ -637,8 +720,12 @@ class ToyAntigravityCli(BaseInstalledAgent):
         config, model_alias = self._build_settings_config(model)
         if config is None:
             return None, model_alias
+        # Must match ANTIGRAVITY_APP_DATA_DIR below, and the directory the OAuth
+        # token is planted in, or agy reads settings from one place and
+        # credentials from another.
+        cli_dir = f"{_AGENT_DATA_DIR}/{_AGENT_CLI_SUBDIR}"
         escaped = shlex.quote(json.dumps(config, indent=2))
-        command = f"mkdir -p ~/.agy/antigravity-cli && printf %s {escaped} > ~/.agy/antigravity-cli/settings.json"
+        command = f"mkdir -p {cli_dir} && printf %s {escaped} > {cli_dir}/settings.json"
         return command, model_alias
 
     @with_prompt_template
@@ -683,6 +770,12 @@ class ToyAntigravityCli(BaseInstalledAgent):
             if var in os.environ:
                 env[var] = os.environ[var]
 
+        # Point agy at the bind-mounted data dir, where install() planted the
+        # OAuth token and the settings file.
+        env["ANTIGRAVITY_APP_DATA_DIR"] = _AGENT_DATA_DIR
+        env["GEMINI_DIR"] = _AGENT_DATA_DIR
+        env["GOOGLE_CLOUD_PROJECT"] = self._gcp_project()
+
         skills_command = self._build_register_skills_command()
         if skills_command:
             await self.exec_as_agent(environment, command=skills_command, env=env)
@@ -697,8 +790,9 @@ class ToyAntigravityCli(BaseInstalledAgent):
             await self.exec_as_agent(
                 environment,
                 command=(
-                    f"$HOME/.local/bin/agy --dangerously-skip-permissions {extra_flags}--prompt={escaped_instruction} "
-                    f"2>&1 </dev/null | stdbuf -oL tee /logs/agent/antigravity-cli.txt"
+                    f"$HOME/.local/bin/agy --gemini_dir={_AGENT_DATA_DIR} "
+                    f"--dangerously-skip-permissions {extra_flags}--prompt={escaped_instruction} "
+                    f"2>&1 </dev/null | stdbuf -oL tee {_AGENT_DATA_DIR}/antigravity-cli.txt"
                 ),
                 env=env,
             )
@@ -707,12 +801,12 @@ class ToyAntigravityCli(BaseInstalledAgent):
                 await self.exec_as_agent(
                     environment,
                     command=(
-                        "src=$(find ~/.agy/antigravity-cli/tmp -type f "
+                        f"src=$(find {_AGENT_DATA_DIR}/{_AGENT_CLI_SUBDIR}/tmp -type f "
                         "\\( -name 'session-*.jsonl' -o -name 'session-*.json' \\) "
                         "-printf '%T@ %p\\n' 2>/dev/null | sort -nr | head -n1 "
                         "| awk '{print $2}'); "
                         'if [ -n "$src" ]; then '
-                        'cp "$src" "/logs/agent/antigravity-cli.trajectory.${src##*.}"; '
+                        f'cp "$src" "{_AGENT_DATA_DIR}/antigravity-cli.trajectory.${{src##*.}}"; '
                         "fi"
                     ),
                 )
