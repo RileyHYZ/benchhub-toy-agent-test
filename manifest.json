@@ -39,6 +39,12 @@
           "default": "gemini/"
         }
       }
+    },
+    {
+      "name": "toy-goose",
+      "import_path": "toy_agent.toy_goose:ToyGoose",
+      "result_strategy": "standard",
+      "trajectory_name_patterns": ["trajectory.json"]
     }
   ]
 }
