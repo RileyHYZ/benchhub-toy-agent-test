@@ -27,6 +27,18 @@
           "default": "gemini/"
         }
       }
+    },
+    {
+      "name": "toy-mini-swe-agent",
+      "import_path": "toy_agent.toy_mini_swe_agent:ToyMiniSweAgent",
+      "result_strategy": "standard",
+      "trajectory_name_patterns": ["trajectory.json"],
+      "model_prefix_map": {
+        "google/": {
+          "vertex": "vertex_ai/",
+          "default": "gemini/"
+        }
+      }
     }
   ]
 }
